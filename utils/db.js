@@ -25,7 +25,7 @@ class DBClient {
       console.log('Error connecting to MongoDB:', error);
       return false;
     } finally {
-      await this.client.close();
+      this.client.close();
     }
   }
 
