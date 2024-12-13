@@ -12,7 +12,7 @@ class DBClient {
         this.usersCollection = this.db.collection('users');
         this.filesCollection = this.db.collection('files');
       } else {
-        console.error(err.message);
+        console.log(err.message);
         this.db = false;
       }
     });
