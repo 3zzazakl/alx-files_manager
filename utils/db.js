@@ -31,7 +31,7 @@ class DBClient {
 
   async nbUsers() {
     try {
-      const numberOfUsers = await this.usersCollection.countDocuments();
+      const numberOfUsers = this.usersCollection.countDocuments();
       return numberOfUsers;
     } catch (error) {
       console.log('Error getting user count from MongoDB:', error);
@@ -43,7 +43,7 @@ class DBClient {
 
   async nbFiles() {
     try {
-      const numberOfFiles = await this.filesCollection.countDocuments();
+      const numberOfFiles = this.filesCollection.countDocuments();
       return numberOfFiles;
     } catch (error) {
       console.log('Error getting file count from MongoDB:', error);
