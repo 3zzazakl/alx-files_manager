@@ -5,6 +5,7 @@ const Bull = require('bull');
 const imageThumbnail = require('image-thumbnail');
 const fs = require('fs');
 const path = require('path');
+const redis = require('redis');
 
 const fileQueue = new Bull('fileQueue');
 
@@ -14,7 +15,7 @@ fileQueue.process(async (job) => {
   if (!fileId) throw new Error('Missing fileId');
   if (!userId) throw new Error('Missing userId');
 
-  const file = await file.findOne({ where: { id: fileId, userId } });
+  const file = await File.findOne({ where: { id: fileId, userId } });
   if (!file) throw new Error('File not found');
 
   const filePath = path.join(__dirname, 'uploads', file.name);
@@ -26,3 +27,27 @@ fileQueue.process(async (job) => {
     fs.writeFileSync(thumbnailPath, thumbnail);
   }
 });
+
+const userQueue = new Bull('userQueue', {
+  redis: {
+    host: '127.0.0.1',
+    port: 6379,
+  },
+});
+
+userQueue.process(async (job) => {
+  const { userId } = job.data;
+
+  if (!userId) throw new Error('Missing userId');
+
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  console.log(`Welcome ${user.email}!`);
+
+  return { message: 'Welcome email sent successfully!' };
+});
+
+module.exports = {
+  fileQueue,
+};

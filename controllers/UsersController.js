@@ -5,6 +5,7 @@ import User from '../models/User';
 
 const uri = process.env.MONGO_URI || 'mongodb://localhost:27017';
 const client = new MongoClient(uri);
+const userQueue = require('./.../utils/worker');
 
 const dbName = 'files_manager';
 const collectionName = 'users';
@@ -72,6 +73,25 @@ export const getMe = async (req, res) => {
     return res.status(200).json(user);
   } catch (error) {
     return res.status(500).json({ error: 'An error occurred while getting the user' });
+  }
+};
+
+exports.createUser = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const newUser = await User.create({ email, username, password });
+
+    await userQueue.add({
+      userId: newUser.id,
+    });
+
+    return res.status(201).json(
+      message: 'User created successfully',
+      userId: newUser.id,
+    );
+  } catch (error) {
+    return res.status(500).json({ message: 'An error occurred while creating the user' });
   }
 };
 
