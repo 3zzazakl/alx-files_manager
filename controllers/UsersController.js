@@ -1,5 +1,7 @@
 import { MongoClient } from 'mongodb';
 import crypto from 'crypto';
+import redisClient from '../utils/redis';
+import User from '../models/User';
 
 const uri = process.env.MONGO_URI || 'mongodb://localhost:27017';
 const client = new MongoClient(uri);
@@ -45,6 +47,31 @@ const postNew = async (req, res) => {
     return res.status(500).json({ error: 'An error occurred while creating the user' });
   } finally {
     await client.close();
+  }
+};
+
+export const getMe = async (req, res) => {
+  const { 'x-token': token } = req.headers;
+  if (!token) {
+    return res.status(401).json({ error: 'Token is required' });
+  }
+
+  try {
+    const userId = await redisClient.get(`auth_${token}`);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const user = await User.findById(userId).select('email id');
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    return res.status(200).json(user);
+  } catch (error) {
+    return res.status(500).json({ error: 'An error occurred while getting the user' });
   }
 };
 
