@@ -1,30 +1,23 @@
-import redis from 'ioredis';
+import redis from 'redis';
+import { promisify } from 'util';
 
 class RedisClient {
   constructor() {
-    this.client = redis.createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+    this.client = redis.createClient();
+    this.getAsync = promisify(this.client.get).bind(this.client);
+
     this.client.on('error', (error) => {
       console.error('Redis error:', error);
     });
   }
 
-  async isAlive() {
-    return new Promise((resolve, reject) => {
-      this.client.ping((err, res) => {
-        if (err) {
-          console.error('Error pinging Redis:', err);
-          reject(false);
-        } else {
-          console.log('Redis ping response:', res);
-          resolve(res === 'PONG');
-        }
-      });
-    });
+  isAlive() {
+    return this.client.connected;
   }
 
   async get(key) {
     try {
-      const value = await this.client.get(key);
+      const value = await this.getAsync(key);
       return value;
     } catch (error) {
       console.error('Error getting key from Redis:', error);
