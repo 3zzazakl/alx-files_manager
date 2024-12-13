@@ -48,6 +48,10 @@ userQueue.process(async (job) => {
   return { message: 'Welcome email sent successfully!' };
 });
 
+userQueue.on('failed', (job, err) => {
+  console.error(`Job failed for user ${job.data.userId}: ${err.message}`);
+});
+
 module.exports = {
   fileQueue,
 };
