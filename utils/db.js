@@ -6,7 +6,7 @@ const DB_DATABASE = process.env.DB_DATABASE || 'files_manager';
 const uri = `mongodb://${DB_HOST}:${DB_PORT}`;
 class DBClient {
   constructor() {
-    MongoClient(uri, { useUniFiedTopology: true }, (err, client) => {
+    MongoClient.connect(uri, { useUniFiedTopology: true }, (err, client) => {
       if (!err) {
         this.db = client.db(DB_DATABASE);
         this.usersCollection = this.db.collection('users');
