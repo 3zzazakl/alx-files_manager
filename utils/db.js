@@ -10,30 +10,48 @@ class DBClient {
     this.dbName = database;
   }
 
-  async connect() {
+  async isAlive() {
     try {
       await this.client.connect();
-      this.db = this.client.db(this.dbName);
-      // console.log('Connected to MongoDB');
+      const admin = this.client.db().admin();
+      const info = await admin.ping();
+      return info.ok === 1;
     } catch (error) {
-      console.log('Connection failed:', error);
+      console.log('Error connecting to MongoDB:', error);
+      return false;
+    } finally {
+      await this.client.close();
     }
   }
 
-  isAlive() {
-    return this.client.isConnected();
-  }
-
   async nbUsers() {
-    const usersCollection = this.db.collection('users');
-    const count = await usersCollection.countDocuments();
-    return count;
+    try {
+      await this.client.connect();
+      const db = this.client.db(this.database);
+      const usersCollection = db.collection('users');
+      const userCount = await usersCollection.countDocuments();
+      return userCount;
+    } catch (error) {
+      console.log('Error getting user count from MongoDB:', error);
+      return 0;
+    } finally {
+      await this.client.close();
+    }
   }
 
   async nbFiles() {
-    const filesCollection = this.db.collection('files');
-    const count = await filesCollection.countDocuments();
-    return count;
+    try {
+      await this.client.connect();
+      const db = this.client.db(this.database);
+      const filesCollection = db.collection('files');
+      const fileCount = await filesCollection.countDocuments();
+      return fileCount;
+    } catch (error) {
+      console.log('Error getting file count from MongoDB:', error);
+      return 0;
+    } finally {
+      await this.client.close();
+    }
   }
 }
 
