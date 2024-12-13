@@ -1,18 +1,18 @@
 import { MongoClient } from 'mongodb';
 
-const host = process.env.host || 'localhost';
-const port = process.env.port || 27017;
-const database = process.env.database || 'files_manager';
-const uri = `mongodb://${host}:${port}`;
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_PORT = process.env.DB_PORT || 27017;
+const DB_DATABASE = process.env.DB_DATABASE || 'files_manager';
+const uri = `mongodb://${DB_HOST}:${DB_PORT}`;
 class DBClient {
   constructor() {
-    MongoClient(uri, { useNewUrlParser: true, useUniFiedTopology: true }, (err, client) => {
+    MongoClient(uri, { useUniFiedTopology: true }, (err, client) => {
       if (!err) {
-        this.db = client.db(database);
+        this.db = client.db(DB_DATABASE);
         this.usersCollection = this.db.collection('users');
         this.filesCollection = this.db.collection('files');
       } else {
-        console.error('Error connecting to MongoDB:', err);
+        console.error(err.message);
         this.db = false;
       }
     });
