@@ -9,6 +9,8 @@ import redisClient from '../utils/redis';
 
 const jwt = require('jsonwebtoken');
 const mime = require('mime-types');
+const Bull = require('bull');
+const fileQueue = new Bull('fileQueue');
 const UPLOAD_DIR = process.env.FOLDER_PATH || '/tmp/files_manager';
 
 
@@ -228,6 +230,33 @@ class FilesController {
       return res.status(500).json({ error: 'An error occurred while getting the file' });
     }
   }
+}
+
+module.exports.uploadFile = async (req, res) => {
+  const { userId, fileId } = req.body;
+
+  await fileQueue.add({
+    userId: userId,
+    fileId: fileId,
+  });
+}
+
+async function getFileData(req, res) {
+  const { id } = req.params;
+  const { size } = req.query;
+
+  const validSizes = ['500', '250', '100'];
+  if (!validSizes.includes(size)) {
+    return res.status(400).json({ error: 'Invalid size' });
+  }
+
+  const filePath = path.join(__dirname, 'uploads', `${id}_${size}`);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  res.sendFile(filePath);
 }
 
 export default FilesController;
