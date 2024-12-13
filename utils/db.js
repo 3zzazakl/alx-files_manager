@@ -6,8 +6,8 @@ class DBClient {
     const port = process.env.DB_PORT || 27017;
     const database = process.env.DB_DATABASE || 'files_manager';
     const uri = `mongodb://${host}:${port}`;
-    this.client = new MongoClient(uri, { useFieldTopology: true });
-    this.dbName = database;
+    this.client = new MongoClient(uri, { useNewUrlParser: true, useUniFiedTopology: true });
+    this.database = database;
   }
 
   async isAlive() {
