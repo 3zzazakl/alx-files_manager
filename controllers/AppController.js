@@ -1,32 +1,21 @@
-import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
 
 class AppController {
   static async getStatus(req, res) {
     try {
       const redisStatus = redisClient.isAlive();
-      const dbStatus = dbClient.isAlive();
-
-      return res.status(200).json({
-        redis: redisStatus,
-        db: dbStatus,
-      });
+      return res.status(200).json({ redis: redisStatus });
     } catch (error) {
-      return res.status(500).json({ error: 'An error occurred' });
+      return res.status(500).json({ error: 'An error occurred while checking Redis status' });
     }
   }
 
   static async getStats(req, res) {
     try {
-      const nbUsers = await dbClient.nbUsers();
-      const nbFiles = await dbClient.nbFiles();
-
-      return res.status(200).json({
-        users: nbUsers,
-        files: nbFiles,
-      });
+      const value = await redisClient.get('someKey');
+      return res.status(200).json({ value });
     } catch (error) {
-      return res.status(500).json({ error: 'An error occurred' });
+      return res.status(500).json({ error: 'An error occurred while getting Redis stats' });
     }
   }
 }

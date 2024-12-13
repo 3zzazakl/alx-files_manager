@@ -14,6 +14,7 @@ class RedisClient {
       const pong = await this.client.ping();
       return pong === 'PONG';
     } catch (error) {
+      console.error('Redis ping error:', error);
       return false;
     }
   }
@@ -23,7 +24,7 @@ class RedisClient {
       const value = await this.client.get(key);
       return value;
     } catch (error) {
-      console.error('Error getting key:', error);
+      console.error('Error getting key from Redis:', error);
       return null;
     }
   }
@@ -32,7 +33,7 @@ class RedisClient {
     try {
       await this.client.setex(key, durationInSeconds, String(value));
     } catch (error) {
-      console.error('Error setting key:', error);
+      console.error('Error setting key in Redis:', error);
     }
   }
 
@@ -40,7 +41,7 @@ class RedisClient {
     try {
       await this.client.del(key);
     } catch (error) {
-      console.error('Error deleting key:', error);
+      console.error('Error deleting key in Redis:', error);
     }
   }
 }
