@@ -87,3 +87,49 @@ export const postUpload = async (req, res) => {
     return res.status(500).json({ error: 'An error occurred while uploading the file' });
   }
 };
+
+async function getUserFromToken(token) {
+  const user = await User.findOne({ token });
+  return user;
+}
+
+module.exports.getShow = async (req, res) => {
+  const { id } = req.params;
+  const token = req.headers['x-token'];
+
+  try {
+    const user = await getUserFromToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const file = await File.findOne({ _id: id, userId: user.id });
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    return res.json;
+  } catch (error) {
+    return res.status(500).json({ error: 'An error occurred while getting the file' });
+  }
+};
+
+module.exports.getIndex = async (req, res) => {
+  const { parentId = 0, page 0 } = req.query;
+  const token = req.headers['x-token'];
+
+  try {
+    const user = await getUserFromToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    const files = await File.find({ userId: user.id, parentId })
+      .skip(page * 20)
+      .limit(20)
+    
+    return res.json(files);
+  } catch (error) {
+    return res.status(500).json({ error: 'An error occurred while getting the files' });
+  }
+};
