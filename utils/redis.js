@@ -1,22 +1,25 @@
-import Redis from 'ioredis';
+import redis from 'ioredis';
 
 class RedisClient {
   constructor() {
-    this.client = new Redis();
-
-    this.client.on('error', (err) => {
-      console.error('Redis error:', err);
+    this.client = redis.createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+    this.client.on('error', (error) => {
+      console.error('Redis error:', error);
     });
   }
 
   async isAlive() {
-    try {
-      const pong = await this.client.ping();
-      return pong === 'PONG';
-    } catch (error) {
-      console.error('Redis ping error:', error);
-      return false;
-    }
+    return new Promise((resolve, reject) => {
+      this.client.ping((err, res) => {
+        if (err) {
+          console.error('Error pinging Redis:', err);
+          reject(false);
+        } else {
+          console.log('Redis ping response:', res);
+          resolve(res === 'PONG');
+        }
+      });
+    });
   }
 
   async get(key) {

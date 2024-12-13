@@ -15,6 +15,7 @@ class DBClient {
       await this.client.connect();
       const admin = this.client.db().admin();
       const info = await admin.ping();
+      console.log('MongoDB ping response:', info);
       return info.ok === 1;
     } catch (error) {
       console.log('Error connecting to MongoDB:', error);
