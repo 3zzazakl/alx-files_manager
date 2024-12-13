@@ -6,6 +6,7 @@ import User from '../models/User';
 import File from '../models/File';
 import redisClient from '../utils/redis';
 
+const jwt = require('jsonwebtoken');
 const UPLOAD_DIR = process.env.FOLDER_PATH || '/tmp/files_manager';
 
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -131,5 +132,62 @@ module.exports.getIndex = async (req, res) => {
     return res.json(files);
   } catch (error) {
     return res.status(500).json({ error: 'An error occurred while getting the files' });
+  }
+};
+
+
+const getUserFromToken = async (token) => {
+  try {
+    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+    return await User.findById(decodedToken.id);
+  } catch (error) {
+    return null;
+  }
+};
+
+module.exports = {
+  putPublish: async (req, res) => {
+    const fileId = req.params.id;
+    const token = req.headers['x-token'];
+
+    const user = await getUserFromToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    try {
+      const file = await File.findOne({ _id: fileId, userId: user._id });
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      file.isPublic = true;
+      await file.save();
+      return res.status(200).json(file);
+    } catch (error) {
+      return res.status(500).json({ error: 'An error occurred while publishing the file' });
+    }
+  },
+
+  putUnPublish: async (req, res) => {
+    const fileId = req.params.id;
+    const token = req.headers['x-token'];
+
+    const user = await getUserFromToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    try {
+      const file = await File.findOne({ _id: fileId, userId: user._id });
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      file.isPublic = false;
+      await file.save();
+      return res.status(200).json(file);
+    } catch (error) {
+      return res.status(500).json({ error: 'An error occurred while unpublishing the file' });
+    }
   }
 };
