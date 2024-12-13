@@ -6,8 +6,11 @@ import User from '../models/User';
 import File from '../models/File';
 import redisClient from '../utils/redis';
 
+
 const jwt = require('jsonwebtoken');
+const mime = require('mime-types');
 const UPLOAD_DIR = process.env.FOLDER_PATH || '/tmp/files_manager';
+
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -191,3 +194,40 @@ module.exports = {
     }
   }
 };
+
+class FilesController {
+  static async getFile(req, res) {
+    const { id } = req.params;
+    const { userId } = req;
+
+    try {
+      const file = await db.File.findByPk(id);
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      if (!file.isPublic && file.userId !== userId) {
+        return res.status(401).json({ error: 'You are not authorized to access this file' });
+      }
+
+      if (file.type === 'folder') {
+        return res.status(400).json({ error: 'Folders cannot be downloaded' });
+      }
+
+      const filePath = path.join(__dirname, '..', 'files', file.name);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      const mimeType = mime.lookup(file.name);
+      res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      return res.status(500).json({ error: 'An error occurred while getting the file' });
+    }
+  }
+}
+
+export default FilesController;
