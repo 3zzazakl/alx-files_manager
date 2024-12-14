@@ -1,100 +1,61 @@
-import { MongoClient } from 'mongodb';
-import crypto from 'crypto';
-import redisClient from '../utils/redis';
-import User from '../models/User';
+import { ObjectId } from 'mongodb';
+import sha1 from 'sha1';
+import Queue from 'bull';
+import dbClient from '../utils/db';
+import userUtils from '../utils/user';
 
-const uri = process.env.MONGO_URI || 'mongodb://localhost:27017';
-const client = new MongoClient(uri);
-const userQueue = require('./.../utils/worker');
+const userQueue = new Queue('userQueue');
 
-const dbName = 'files_manager';
-const collectionName = 'users';
+const UsersController = {
+  static async postNew(request, response) {
+    const { email, password } = request.body;
 
-const postNew = async (req, res) => {
-  const { email, password } = req.body;
+    if (!email) { return response.status(400).send({ error: 'Missing email' }); }
 
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
-  }
+    if (!password) { return response.status(400).send({ error: 'Missing password' }); }
 
-  if (!password) {
-    return res.status(400).json({ error: 'Password is required' });
-  }
+    const emailExists = await dbClient.usersCollection.findOne({ email });
 
-  try {
-    await client.connect();
-    const db = client.db(dbName);
-    const collection = db.collection(collectionName);
-    const existingUser = await collection.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+    if (emailExists) { return response.status(400).send({ error: 'Email already exists' }); }
+
+    const sha1Password = sha1(password);
+
+    let result;
+
+    try {
+      result = await dbClient.usersCollection.insertOne({
+        email,
+        password: sha1Password,
+      });
+    } catch (error) {
+      await userQueue.add({});
+      return response.status(500).send({ error: 'An error occurred while creating the user' });
     }
 
-    const sha1Hash = crypto.createHash('sha1').update(password).digest('hex');
-
-    const newUser = {
-      email,
-      password: sha1Hash,
-    };
-
-    const result = await collection.insertOne(newUser);
-
-    return res.status(201).json({
+    const user = {
       id: result.insertedId,
       email,
-    });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    return res.status(500).json({ error: 'An error occurred while creating the user' });
-  } finally {
-    await client.close();
-  }
-};
-
-export const getMe = async (req, res) => {
-  const { 'x-token': token } = req.headers;
-  if (!token) {
-    return res.status(401).json({ error: 'Token is required' });
-  }
-
-  try {
-    const userId = await redisClient.get(`auth_${token}`);
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    const user = await User.findById(userId).select('email id');
-
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    return res.status(200).json(user);
-  } catch (error) {
-    return res.status(500).json({ error: 'An error occurred while getting the user' });
-  }
-};
-
-exports.createUser = async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const newUser = await User.create({ email, username, password });
+    };
 
     await userQueue.add({
-      userId: newUser.id,
+      userId: result.insertedId.toString(),
     });
 
-    return res.status(201).json(
-      message: 'User created successfully',
-      userId: newUser.id,
-    );
-  } catch (error) {
-    return res.status(500).json({ message: 'An error occurred while creating the user' });
+    return response.status(201).send(user);
   }
-};
 
-export default {
-  postNew,
-};
+  static async getMe(request, response) {
+    const { userId } = await userUtils.getUserIdAndKey(request);
+    const user = await userUtils.getUser({ _id: ObjectId(userId) });
+
+    if (!user) { return response.status(401).send({ error: 'Unauthorized' }); }
+
+    const processUser = { id: user._id, ...user };
+    delete processUser._id;
+    delete processUser.password;
+
+    return response.status(200).send(processUser);
+  }
+}
+
+export default UsersController;
