@@ -1,9 +1,9 @@
 import Queue from 'bull';
 import { ObjectId } from 'mongodb';
 import { promises as fspromises } from 'fs';
-import fileUtils from '../utils/file';
-import userUtils from '../utils/user';
-import basicUtils from '../utils/basic';
+import fileUtils from './utils/file';
+import userUtils from './utils/user';
+import basicUtils from './utils/basic';
 
 const imageThumbnail = require('image-thumbnail');
 
