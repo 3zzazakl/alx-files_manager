@@ -1,262 +1,139 @@
-import fs from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { uuidV4 } from 'mongodb/lib/core/utils';
-import User from '../models/User';
-import File from '../models/File';
-import redisClient from '../utils/redis';
+import { ObjectId } from 'mongodb';
+import mime from 'mime-types';
+import Queue from 'bull';
+import userUtils from '../utils/user';
+import fileUtils from '../utils/file';
+import basicUtils from '../utils/basic';
 
 
-const jwt = require('jsonwebtoken');
-const mime = require('mime-types');
-const Bull = require('bull');
-const fileQueue = new Bull('fileQueue');
-const UPLOAD_DIR = process.env.FOLDER_PATH || '/tmp/files_manager';
+const FOLDER_PATH = process.env.FOLDER_PATH || '/tmp/files_manager';
 
-
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-
-function decodeAuthHeader(authHeader) {
-  const base64Credentials = authHeader.split(' ')[1];
-  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
-  const [email, password] = credentials.split(':');
-  return { email, password };
-}
-
-export const postUpload = async (req, res) => {
-  const { authorization } = req.headers;
-
-  if (!authorization || !authorization.startsWith('Basic ')) {
-    return res.status(401).json({ error: 'Authorization header is required' });
-  }
-
-  const { email, password } = decodeAuthHeader(authorization);
-
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const {
-      name, type, parentId = 0, isPublic = false, data,
-    } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'Name is required' });
-    }
-
-    if (!type || !['image', 'folder', 'file'].includes(type)) {
-      return res.status(400).json({ error: 'Type is required and must be one of image, folder or file' });
-    }
-
-    if (type !== 'folder' && !data) {
-      return res.status(400).json({ error: 'Data is required for file uploads' });
-    }
-
-    if (parentId !== 0) {
-      const parentFile = await File.findById(parentId);
-
-      if (!parentFile) {
-        return res.status(400).json({ error: 'Parent file does not exist' });
-      }
-
-      if (parentFile.type !== 'folder') {
-        return res.status(400).json({ error: 'Parent file must be a folder' });
-      }
-    }
-
-    let localPath = null;
-
-    if (type !== 'folder') {
-      const buffer = Buffer.from(data, 'base64');
-      const fileName = uuidV4();
-      localPath = path.join(UPLOAD_DIR, fileName);
-
-      fs.writeFileSync(localPath, buffer);
-    }
-
-    const newFile = new File({
-      userId: user.id,
-      name,
-      type,
-      isPublic,
-      parentId,
-      localPath: localPath || null,
-    });
-
-    await newFile.save();
-    return res.status(201).json(newFile);
-  } catch (error) {
-    return res.status(500).json({ error: 'An error occurred while uploading the file' });
-  }
-};
-
-async function getUserFromToken(token) {
-  const user = await User.findOne({ token });
-  return user;
-}
-
-module.exports.getShow = async (req, res) => {
-  const { id } = req.params;
-  const token = req.headers['x-token'];
-
-  try {
-    const user = await getUserFromToken(token);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    const file = await File.findOne({ _id: id, userId: user.id });
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    return res.json;
-  } catch (error) {
-    return res.status(500).json({ error: 'An error occurred while getting the file' });
-  }
-};
-
-module.exports.getIndex = async (req, res) => {
-  const { parentId = 0, page 0 } = req.query;
-  const token = req.headers['x-token'];
-
-  try {
-    const user = await getUserFromToken(token);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    const files = await File.find({ userId: user.id, parentId })
-      .skip(page * 20)
-      .limit(20)
-    
-    return res.json(files);
-  } catch (error) {
-    return res.status(500).json({ error: 'An error occurred while getting the files' });
-  }
-};
-
-
-const getUserFromToken = async (token) => {
-  try {
-    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-    return await User.findById(decodedToken.id);
-  } catch (error) {
-    return null;
-  }
-};
-
-module.exports = {
-  putPublish: async (req, res) => {
-    const fileId = req.params.id;
-    const token = req.headers['x-token'];
-
-    const user = await getUserFromToken(token);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    try {
-      const file = await File.findOne({ _id: fileId, userId: user._id });
-      if (!file) {
-        return res.status(404).json({ error: 'File not found' });
-      }
-
-      file.isPublic = true;
-      await file.save();
-      return res.status(200).json(file);
-    } catch (error) {
-      return res.status(500).json({ error: 'An error occurred while publishing the file' });
-    }
-  },
-
-  putUnPublish: async (req, res) => {
-    const fileId = req.params.id;
-    const token = req.headers['x-token'];
-
-    const user = await getUserFromToken(token);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    try {
-      const file = await File.findOne({ _id: fileId, userId: user._id });
-      if (!file) {
-        return res.status(404).json({ error: 'File not found' });
-      }
-      file.isPublic = false;
-      await file.save();
-      return res.status(200).json(file);
-    } catch (error) {
-      return res.status(500).json({ error: 'An error occurred while unpublishing the file' });
-    }
-  }
-};
+const fileQueue = new Queue('fileQueue');
 
 class FilesController {
-  static async getFile(req, res) {
-    const { id } = req.params;
-    const { userId } = req;
+  static async postUpload(request, response) {
+    const { userId } = await userUtils.getUserIdAndKey(request);
 
-    try {
-      const file = await db.File.findByPk(id);
-      if (!file) {
-        return res.status(404).json({ error: 'File not found' });
-      }
+    if (!basicUtils.isValidId(userId)) { return response.status(401).send({ error: 'Unauthorized' }); }
 
-      if (!file.isPublic && file.userId !== userId) {
-        return res.status(401).json({ error: 'You are not authorized to access this file' });
-      }
-
-      if (file.type === 'folder') {
-        return res.status(400).json({ error: 'Folders cannot be downloaded' });
-      }
-
-      const filePath = path.join(__dirname, '..', 'files', file.name);
-
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File not found' });
-      }
-
-      const mimeType = mime.lookup(file.name);
-      res.setHeader('Content-Type', mimeType || 'application/octet-stream');
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-    } catch (error) {
-      return res.status(500).json({ error: 'An error occurred while getting the file' });
+    if (!userId && request.body.type === 'image') {
+      await fileQueue.add({});
     }
+    const user = await userUtils.getUser({ _id: ObjectId(userId) });
+
+    if (!user) { return response.status(401).send({ error: 'Unauthorized' }); }
+
+    const { error: validationError, fileParams } = await fileUtils.validateBody(request);
+
+    if (validationError) { return response.status(400).send({ error: validationError }); }
+
+    if (fileParams.parentId !== 0 && !basicUtils.isValidId(fileParams.parentId)) {
+      return response.status(400).send({ error: 'Parent not found' });
+    }
+
+    const { error, code, newFile } = await fileUtils.saveFile(userId, fileParams, FOLDER_PATH);
+
+    if (error) {
+      if (response.body.type === 'image') await fileQueue.add({ userId });
+    }
+
+    if (fileParams.type === 'image') {
+      await fileQueue.add({
+        fileId: newFile.id.toString(),
+        userId: newFile.userId.toString(),
+      });
+    }
+    return response.status(201).send(newFile);
   }
-}
 
-module.exports.uploadFile = async (req, res) => {
-  const { userId, fileId } = req.body;
+  static async getShow(request, response) {
+    const fileId = request.params.id;
+    const { userId } = await userUtils.getUserIdAndKey(request);
+    const user = await userUtils.getUser({ _id: ObjectId(userId) });
 
-  await fileQueue.add({
-    userId: userId,
-    fileId: fileId,
-  });
-}
+    if (!user) { return response.status(401).send({ error: 'Unauthorized' }); }
 
-async function getFileData(req, res) {
-  const { id } = req.params;
-  const { size } = req.query;
+    if (!basicUtils.isValidId(fileId) || !basicUtils.isValidId(userId)) { return response.status(404).send({ error: 'Not found' }); }
 
-  const validSizes = ['500', '250', '100'];
-  if (!validSizes.includes(size)) {
-    return res.status(400).json({ error: 'Invalid size' });
+    const result = await fileUtils.getFile({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+
+    if (!result) { return response.status(404).send({ error: 'Not found' }); }
+
+    return response.status(200).send(file);
   }
 
-  const filePath = path.join(__dirname, 'uploads', `${id}_${size}`);
+  static async getIndex(request, response) {
+    const { userId } = await userUtils.getUserIdAndKey(request);
+    const user = await userUtils.getUser({ _id: ObjectId(userId) });
+    if (!user) { return response.status(401).send({ error: 'Unauthorized' }); }
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File not found' });
+    let parentId = request.query.parentId || '0';
+    if (parent === '0') parentId = 0;
+
+    let page = Number(request.query.page) || 0;
+    if (Number.isNaN(page)) page = 0;
+
+    if (parentId !== 0 && parentId !== '0') {
+      if (!basicUtils.isValidId(parentId)) { return response.status(401).send({ error: 'Unauthorized' }); }
+
+      parentId = ObjectId(parentId);
+
+      const folder = await fileUtils.getFile({ _id: parentId });
+
+      if (!folder || folder.type !== 'folder') { return response.status(200).send([]); }
+
+      const pipeline = [
+        { $match: { parentId: ObjectId(parentId) } },
+        { $skip: page * 20 },
+        { $limit: 20 },
+      ];
+    
+      const fileCursor = await fileUtils.getFilesOfParentId(pipeline);
+      
+      const fileList = [];
+      await fileCursor.forEach((doc) => {
+        const document = fileUtils.processFile(doc);
+        fileList.push(document);
+      });
+
+      return response.status(200).send(fileList);
+    }
+    
+    static async putPublish(request, response) {
+    const { error, code, updateFile } = await fileUtils.publishUnpublis(
+      request,
+      true
+    );
+
+    if (error) return response.status(code).send({ error });
+    return response.status(code).send(updateFile);
   }
+  
+  static async getFile(request, response) {
+    const { userId } = await userUtils.getUserIdAndKey(request);
+    const { id: fileId } = request.params;
+    const size = request.query.size || 0;
 
-  res.sendFile(filePath);
+    if (!basicUtils.isValidId(fileId)) { return response.status(404).send({ error: 'Not found' }); }
+
+    const file = await fileUtils.getFile({
+      _id: ObjectId(fileId),
+    });
+
+    if (!file || !fileUtils.isOwnerAndPublic(file, userId)) { return response.status(404).send({ error: 'Not found' }); }
+
+    if (file.type === 'folder') { return response.status(400).send({ error: "A folder doesn't have content" }); }
+
+    const { error, code, data } = await fileUtils.getFileData(file, size);
+    
+    if (error) return response.status(code).send({ error });
+
+    const mimeType = mime.contentType(file.name);
+    response.setHeader('Content-Type', mimeType);
+
+    return response.status(200).send(data);
+  }
 }
 
 export default FilesController;
+
