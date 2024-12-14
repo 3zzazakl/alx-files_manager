@@ -19,38 +19,17 @@ class DBClient {
   }
 
   isAlive() {
-    try {
-      return Boolean(this.db);
-    } catch (error) {
-      console.log('Error connecting to MongoDB:', error);
-      return false;
-    } finally {
-      this.client.close();
-    }
+    return Boolean(this.db);
   }
 
   async nbUsers() {
-    try {
-      const numberOfUsers = this.usersCollection.countDocuments();
-      return numberOfUsers;
-    } catch (error) {
-      console.log('Error getting user count from MongoDB:', error);
-      return 0;
-    } finally {
-      await this.client.close();
-    }
+    const numberOfUsers = this.usersCollection.countDocuments();
+    return numberOfUsers;
   }
 
   async nbFiles() {
-    try {
-      const numberOfFiles = this.filesCollection.countDocuments();
-      return numberOfFiles;
-    } catch (error) {
-      console.log('Error getting file count from MongoDB:', error);
-      return 0;
-    } finally {
-      await this.client.close();
-    }
+    const numberOfFiles = this.filesCollection.countDocuments();
+    return numberOfFiles;
   }
 }
 
