@@ -1,5 +1,5 @@
-import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
+import redisClient from './redis';
+import dbClient from './db';
 
 const UserSchema = new mongoose.Schema({
   email: {
