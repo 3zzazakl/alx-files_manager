@@ -1,26 +1,20 @@
 import redisClient from './redis';
 import dbClient from './db';
 
-const UserSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
+const userUtils = {
+  async getUserIdAndKey(request) {
+    const obj = { userId: null, key: null };
+    const xToken = request.headers['X-Token'];
+    if (!xToken) return obj;
+    obj.key = `auth_${xToken}`;
+    obj.userId = await redisClient.get(obj.key);
+    return obj;
   },
-  password: {
-    type: String,
-    required: true,
+
+  async getUser(query) {
+    const user = await dbClient.usersCollection.findOne(query);
+    return user;
   },
-});
+};
 
-UserSchema.pre('save', async function (next) {
-  if (this.isModified('password')) {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-  }
-  next();
-});
-
-const User = mongoose.model('User', UserSchema);
-
-export default User;
+export default userUtils;
