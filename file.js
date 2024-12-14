@@ -1,9 +1,9 @@
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { promises as fspromises } from 'fs';
+import dbClient from './db';
 import basicUtils from './basic';
 import userUtils from './user';
-import dbUtils from './db';
 
 const fileUtils = {
   async validateBody(request) {
@@ -57,7 +57,7 @@ const fileUtils = {
   },
 
   async getFile(query) {
-    const file = await dbUtils.getFile(query);
+    const file = await dbClient.filesCollection.findOne(query);
     return file;
   },
 
@@ -107,7 +107,11 @@ const fileUtils = {
   },
 
   async updateFile(query, set) {
-    const fileList = await dbClient.filesCollection.findOneAndUpdate(query, set, { returnOriginal: false });
+    const fileList = await dbClient.filesCollection.findOneAndUpdat(
+      query,
+      set,
+      { returnOriginal: false },
+    );
     return fileList;
   },
 
@@ -149,25 +153,28 @@ const fileUtils = {
     delete file.localPath;
     delete file._id;
     return file;
-    },
-  
-    isOwnerAndPublic(file, userId) {
-        if (!file.isPublic && !userId) || (userId && file.userId.toString() !== userId && !file.isPublic) { return false; }
-        return true;
-    },
-    async getFileData(file, size) {
-        let { localPath } = file;
-        let data;
+  },
 
-        if (size) localPath = `${localPath}_${size}`;
+  isOwnerAndPublic(file, userId) {
+    if (
+      (!file.isPublic && !userId)
+      || (userId && file.userId.toString() !== userId && !file.isPublic)
+    ) { return false; }
+    return true;
+  },
+  async getFileData(file, size) {
+    let { localPath } = file;
+    let data;
 
-        try {
-            data = await fspromises.readFile(localPath);
-        } catch (error) {
-            return { error: 'Not found', code: 404 };
-        }
-        return { data };
-    },
+    if (size) localPath = `${localPath}_${size}`;
+
+    try {
+      data = await fspromises.readFile(localPath);
+    } catch (error) {
+      return { error: 'Not found', code: 404 };
+    }
+    return { data };
+  },
 };
 
 export default fileUtils;
