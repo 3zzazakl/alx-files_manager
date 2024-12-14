@@ -1,4 +1,3 @@
-import { use } from 'chai';
 import redisClient from './redis';
 import dbClient from './db';
 
