@@ -6,7 +6,7 @@ import userUtils from '../utils/user';
 
 const userQueue = new Queue('userQueue');
 
-const UsersController = {
+class UsersController {
   static async postNew(request, response) {
     const { email, password } = request.body;
 
